@@ -9,8 +9,10 @@ enable_confirmations = false
 subject = "Candon eSession password reset code"
 content_path = "./supabase/templates/recovery.html"
 
-[auth.email.smtp]
-sender_name = "Candon eSession"
+# SMTP (sender name "Candon eSession") is configured in the Dashboard: Authentication → SMTP
+# Settings — see supabase/README.md. It is left out here because the CLI requires the full SMTP
+# settings (host, credentials) whenever an [auth.email.smtp] section exists, and the credentials
+# must not be committed.
 
 [functions.admin-users]
 # The function verifies the caller's session itself (auth.getUser), so the gateway check is
