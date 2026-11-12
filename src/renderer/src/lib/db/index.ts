@@ -117,7 +117,7 @@ const NOTIFIABLE_TABLES = new Set<TableName>([
   'draft_ordinances',
   'draft_resolutions',
   'communications',
-  'minutes',
+  'sessions',
   'session_minutes',
   'transcripts',
   'other_matters',

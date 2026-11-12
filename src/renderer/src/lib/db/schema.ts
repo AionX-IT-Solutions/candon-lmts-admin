@@ -87,7 +87,7 @@ export const TABLE_COLUMNS = {
   ],
   draft_ordinance_readings: ['draft_no', 'session_no', 'reading'],
   draft_resolution_readings: ['draft_no', 'session_no', 'reading'],
-  minutes: [
+  sessions: [
     'session_no',
     'date',
     'category',

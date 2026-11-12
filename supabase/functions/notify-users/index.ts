@@ -24,6 +24,13 @@ const MODULES: Record<string, { privilege: string; label: string; route: string 
     label: 'Communications',
     route: '/communications-others'
   },
+  sessions: {
+    privilege: 'Calendar of Business',
+    label: 'Order of Business',
+    route: '/regular-session'
+  },
+  // The sessions table's old name — still sent by LMTS Admin builds from before the rename
+  // (20261112100000_rename_minutes_to_sessions.sql). Remove with the `minutes` view.
   minutes: {
     privilege: 'Calendar of Business',
     label: 'Order of Business',

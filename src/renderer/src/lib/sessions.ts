@@ -33,7 +33,7 @@ export function useSessions(enabled = true) {
 
   const reload = useCallback(async () => {
     try {
-      const { items } = await fetchDocs<Session>('minutes', {
+      const { items } = await fetchDocs<Session>('sessions', {
         orderByField: 'date',
         direction: 'desc'
       })

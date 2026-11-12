@@ -124,6 +124,24 @@ app falls back to downloading those tables whole and sorting and searching on th
 If the app keeps falling back after applying it, run `NOTIFY pgrst, 'reload schema';` in the SQL
 Editor.
 
+## Sessions table (formerly `minutes`)
+
+The Order of Business sessions (Regular / Special Session) live in `public.sessions`; the table
+used to be called `minutes`, which clashed with the Session Minutes module's `session_minutes`.
+Roll the rename out in this order:
+
+1. Apply [`migrations/20261112100000_rename_minutes_to_sessions.sql`](migrations/20261112100000_rename_minutes_to_sessions.sql)
+   (after `20261112090000_list_documents_page.sql`), then `NOTIFY pgrst, 'reload schema';`.
+   It renames the table and leaves a `minutes` view behind, so desktop and mobile builds from
+   before the rename keep working (they just stop refreshing sessions live).
+2. Redeploy the notification function, which now accepts both names:
+   `supabase functions deploy notify-users --project-ref mjnmcnxorpkpddefcrmr`
+3. Release LMTS Admin and the mobile app builds that use `sessions`.
+4. Once every install is updated: `drop view if exists public.minutes;` and remove the `minutes`
+   entry from `functions/notify-users/index.ts`.
+
+Session PDFs keep their storage folder (`minutes/…`); only the table was renamed.
+
 ## How it fits together
 
 - **Login**: users type a username, and the apps sign in to Supabase Auth as

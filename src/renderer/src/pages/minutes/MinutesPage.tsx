@@ -155,17 +155,17 @@ function MinutesFormModal({
 
       if (isEdit)
         await updateDocumentWithFile(
-          'minutes',
+          'sessions',
           record!.id,
           data,
-          'minutes',
+          'minutes', // storage folder: session PDFs stay under minutes/
           `SessionNo._${form.sessionNo}`,
           file,
           record?.filePath ?? '',
           record?.fileType ?? ''
         )
       else
-        await addDocumentWithFile('minutes', data, 'minutes', `SessionNo._${form.sessionNo}`, file)
+        await addDocumentWithFile('sessions', data, 'minutes', `SessionNo._${form.sessionNo}`, file)
       await logActivity(`${isEdit ? 'Updated' : 'Created'} Minutes Session ${form.sessionNo}`)
       toast.success(isEdit ? 'Updated' : 'Created')
       onSuccess()
@@ -297,7 +297,7 @@ export function MinutesPage() {
   const { items, loading, loadingMore, hasMore, reload, loadMore } = useListData<
     Record<string, unknown>
   >({
-    endpoint: 'minutes',
+    endpoint: 'sessions',
     sortParam: 'sessionNo|desc',
     dataKey: 'minutes',
     limit: 100,
@@ -351,7 +351,7 @@ export function MinutesPage() {
     if (!selected) return
     setDeleting(true)
     try {
-      await deleteDocumentWithFile('minutes', selected.id)
+      await deleteDocumentWithFile('sessions', selected.id)
       await logActivity(`Deleted Minutes Session ${selected.sessionNo}`)
       toast.success('Deleted')
       setShowDelete(false)
