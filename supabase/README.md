@@ -110,6 +110,20 @@ If the chat migrations were previously run manually in the Supabase SQL Editor, 
 app still reports that `hide_chat_for_me` is missing from the schema cache, run
 `NOTIFY pgrst, 'reload schema';` in the SQL Editor and retry Delete.
 
+## Mobile list paging
+
+Apply [`migrations/20261112090000_list_documents_page.sql`](migrations/20261112090000_list_documents_page.sql)
+so the mobile app loads Regular/Special Session, Draft Ordinances/Resolutions, Hearing/Meeting
+Transcripts, Public Hearing Minutes and Standing Committees 20 rows at a time. Those lists are
+ordered newest council term first and/or by session number (`043-2026`, `97th`, `13SP_49th`),
+which plain column ordering can't express, so `list_documents_page` sorts in SQL and returns one
+page plus the total count. The app's search box for those lists runs through it too (a
+case-insensitive "contains" over the module's search fields and term name), paged and counted the
+same way. It is read-only and runs with the caller's row level security. Until it is applied, the
+app falls back to downloading those tables whole and sorting and searching on the device.
+If the app keeps falling back after applying it, run `NOTIFY pgrst, 'reload schema';` in the SQL
+Editor.
+
 ## How it fits together
 
 - **Login**: users type a username, and the apps sign in to Supabase Auth as
