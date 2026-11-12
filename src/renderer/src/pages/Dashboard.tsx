@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { countDocs, fetchDocs } from '../lib/db'
+import { countDocs, type FetchFilter, fetchDocs } from '../lib/db'
 import { useFileUrl } from '../hooks/useFileUrl'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/authStore'
@@ -395,6 +395,22 @@ function avatarColor(name: string) {
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4']
 
+/** As written in activity log dates (toLocaleDateString 'en-PH', month: 'long'). */
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December'
+]
+
 const QUICK_LINKS = [
   {
     label: 'Ordinances',
@@ -460,6 +476,13 @@ export function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const [upcomingBirthdays, setUpcomingBirthdays] = useState<UpcomingBirthday[]>([])
   const [logs, setLogs] = useState<Log[]>([])
+  // Counted in the database over every activity log — `logs` above only holds the latest few
+  // for the Recent Activity list.
+  const [activityCounts, setActivityCounts] = useState({
+    total: 0,
+    last30Days: 0,
+    byMonth: Array<number>(12).fill(0)
+  })
   const [stats, setStats] = useState<Stats>({
     generalOrdinances: 0,
     appropriation: 0,
@@ -499,8 +522,29 @@ export function DashboardPage() {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     try {
-      const currentYear = new Date().getFullYear()
+      const now = new Date()
+      const currentYear = now.getFullYear()
       const parseLogDate = (s: string) => new Date(s?.replace(/^[A-Za-z]+,\s*/, '') ?? '').getTime()
+
+      // Activity is counted in the database over every log, not just the few fetched for the
+      // Recent Activity list.
+      const countLogs = (filters: FetchFilter[] = []) => countDocs('activity_logs', { filters })
+      // Per month by the log's own date text — what the Activity Log page shows, e.g.
+      // "Wednesday, November 12, 2026 07:45 PM" — rather than created_at, which for imported
+      // logs is the import time.
+      const countLogsInMonth = async (month: number) => {
+        const { count, error } = await supabase
+          .from('activity_logs')
+          .select('id', { count: 'exact', head: true })
+          .ilike('date', `%${MONTH_NAMES[month]} %, ${currentYear}%`)
+        if (error) throw new Error(error.message)
+        return count ?? 0
+      }
+      // Months after the current one can't have activity yet.
+      const countLogsByMonth = Promise.all(
+        Array.from({ length: now.getMonth() + 1 }, (_, month) => countLogsInMonth(month))
+      )
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 3600000).toISOString()
 
       const [
         logsRes,
@@ -509,7 +553,10 @@ export function DashboardPage() {
         taxOrdinances,
         generalResolutions,
         commendations,
-        posthumous
+        posthumous,
+        totalLogs,
+        logsLast30Days,
+        logsByMonth
       ] = await Promise.all([
         fetchDocs<Log>('activity_logs', {
           // newest first by insert time; the text 'date' field doesn't sort chronologically
@@ -534,7 +581,10 @@ export function DashboardPage() {
         }),
         countDocs('resolutions', {
           filters: [{ field: 'category', op: '==', value: 'Posthumous' }]
-        })
+        }),
+        countLogs(),
+        countLogs([{ field: 'createdAt', op: '>=', value: thirtyDaysAgo }]),
+        countLogsByMonth
       ])
 
       const yearLogs = logsRes.items.filter((l) => {
@@ -547,6 +597,11 @@ export function DashboardPage() {
         return isNaN(da) || isNaN(db2) ? 0 : db2 - da
       })
       setLogs(yearLogs.slice(0, 10))
+      setActivityCounts({
+        total: totalLogs,
+        last30Days: logsLast30Days,
+        byMonth: Array.from({ length: 12 }, (_, m) => logsByMonth[m] ?? 0)
+      })
 
       setStats({
         generalOrdinances,
@@ -567,19 +622,7 @@ export function DashboardPage() {
   const totalResolutions = stats.generalResolutions + stats.commendations + stats.posthumous
   const totalDocs = totalOrdinances + totalResolutions
 
-  const recent30 = useMemo(() => {
-    const cutoff = Date.now() - 30 * 24 * 3600000
-    return logs.filter((l) => {
-      try {
-        return new Date(l.date).getTime() > cutoff
-      } catch {
-        return false
-      }
-    }).length
-  }, [logs])
-
   const activityData = useMemo(() => {
-    const currentYear = new Date().getFullYear()
     const months = [
       'Jan',
       'Feb',
@@ -594,21 +637,8 @@ export function DashboardPage() {
       'Nov',
       'Dec'
     ]
-    const map: Record<string, number> = {}
-    months.forEach((m) => (map[m] = 0))
-    logs.forEach((log) => {
-      try {
-        const yearMatch = log.date?.match(/\b(20\d{2})\b/)
-        if (!yearMatch || parseInt(yearMatch[1]) !== currentYear) return
-        const d = new Date(log.date?.replace(/^[A-Za-z]+,\s*/, '') ?? '')
-        const key = isNaN(d.getTime()) ? null : d.toLocaleString('en-US', { month: 'short' })
-        if (key && key in map) map[key]++
-      } catch {
-        /* skip */
-      }
-    })
-    return months.map((month) => ({ month, activity: map[month] }))
-  }, [logs])
+    return months.map((month, m) => ({ month, activity: activityCounts.byMonth[m] }))
+  }, [activityCounts])
 
   const distributionData = useMemo(
     () =>
@@ -851,8 +881,8 @@ export function DashboardPage() {
             />
             <KpiCard
               label="Activity Records"
-              value={logs.length}
-              sub={`${recent30} in the last 30 days`}
+              value={activityCounts.total}
+              sub={`${activityCounts.last30Days} in the last 30 days`}
               icon={<Activity size={20} color="#fff" />}
               gradient="linear-gradient(135deg,#f59e0b,#d97706)"
               glow="rgba(245,158,11,0.25)"
